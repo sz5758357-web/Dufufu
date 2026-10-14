@@ -1,0 +1,143 @@
+
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>My IPTV</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#090b10;color:#fff;font-family:-apple-system,sans-serif}
+header{padding:25px 18px 15px;background:#11151d}
+h1{margin:0;font-size:29px;letter-spacing:-1px}
+h1 span{color:#5c9dff}
+p{color:#9ca8ba;font-size:13px}
+main{padding:16px}
+.upload{display:block;text-align:center;padding:17px;border:1px solid #343e50;
+border-radius:16px;background:#171d29;color:#fff;margin-bottom:18px}
+input[type=file]{display:block;width:100%;margin-top:12px}
+input[type=search]{width:100%;padding:13px;border:0;border-radius:12px;
+background:#171d29;color:white;margin-bottom:15px;font-size:16px}
+video{width:100%;background:#000;border-radius:15px;max-height:45vh}
+#now{font-weight:600;margin:12px 0 18px}
+.channel{padding:14px;margin:7px 0;background:#151a24;border-radius:12px;
+display:flex;align-items:center;gap:12px;cursor:pointer}
+.channel:active{background:#29364a}
+.num{background:#273750;border-radius:10px;padding:12px;color:#8cbaff}
+.name{flex:1;overflow-wrap:anywhere}
+small{color:#9ba8ba}
+button{background:#26354b;border:0;color:white;border-radius:9px;padding:10px}
+#status{color:#8ebaff}
+</style>
+</head>
+<body>
+<header>
+<h1>My <span>IPTV</span></h1>
+<p>Twoja telewizja. Twoja playlista.</p>
+</header>
+<main>
+<label class="upload">
+<strong>＋ Wczytaj playlistę M3U</strong>
+<input id="file" type="file" accept=".m3u,.m3u8,audio/x-mpegurl,application/vnd.apple.mpegurl">
+</label>
+<p id="status">Wybierz własny plik M3U.</p>
+
+<video id="video" controls playsinline webkit-playsinline></video>
+<div id="now">Nie wybrano kanału</div>
+
+<input id="search" type="search" placeholder="Szukaj kanału...">
+<div id="channels"></div>
+</main>
+<script>
+const file = document.getElementById('file');
+const video = document.getElementById('video');
+const channelsBox = document.getElementById('channels');
+const status = document.getElementById('status');
+const now = document.getElementById('now');
+let channels = [];
+
+file.addEventListener('change', async () => {
+  const f = file.files[0];
+  if (!f) return;
+
+  try {
+    const text = await f.text();
+    channels = parseM3U(text, f.name);
+    render();
+    status.textContent = `Wczytano ${channels.length} pozycji`;
+  } catch (e) {
+    status.textContent = 'Nie udało się odczytać pliku.';
+  }
+});
+
+function parseM3U(text, filename) {
+  const lines = text.replace(/^\uFEFF/, '').split(/\r?\n/);
+  const result = [];
+  let info = '';
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith('#EXTINF:')) {
+      info = line;
+    } else if (line && !line.startsWith('#')) {
+      try {
+        const name = info.includes(',')
+          ? info.slice(info.indexOf(',') + 1).trim()
+          : `Kanał ${result.length + 1}`;
+
+        const group = (info.match(/group-title="([^"]*)"/i) || [])[1] || '';
+        result.push({name, group, url: line});
+      } catch {}
+      info = '';
+    }
+  }
+  return result;
+}
+
+function render() {
+  const query = document.getElementById('search').value.toLowerCase();
+  channelsBox.replaceChildren();
+
+  channels.filter(c =>
+    c.name.toLowerCase().includes(query) ||
+    c.group.toLowerCase().includes(query)
+  ).forEach((c) => {
+    const item = document.createElement('div');
+    item.className = 'channel';
+
+    const number = document.createElement('div');
+    number.className = 'num';
+    number.textContent = '▶';
+
+    const details = document.createElement('div');
+    details.className = 'name';
+    const name = document.createElement('div');
+    name.textContent = c.name;
+    details.append(name);
+
+    if (c.group) {
+      const group = document.createElement('small');
+      group.textContent = c.group;
+      details.append(group);
+    }
+
+    item.append(number, details);
+    item.addEventListener('click', () => play(c));
+    channelsBox.append(item);
+  });
+}
+
+function play(channel) {
+  video.src = channel.url;
+  now.textContent = channel.name;
+  video.load();
+  video.play().catch(() => {
+    status.textContent =
+      'Naciśnij ▶. Jeśli nie działa, format lub serwer może być nieobsługiwany.';
+  });
+}
+
+document.getElementById('search').addEventListener('input', render);
+</script>
+</body>
+</html>
